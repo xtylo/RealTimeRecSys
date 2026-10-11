@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Datos y artefactos (se generan localmente)
+data/
+artifacts/
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+# IDE / SO
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

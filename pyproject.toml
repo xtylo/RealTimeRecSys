@@ -1,24 +1,39 @@
 [project]
 name = "realtime-recsys"
 version = "0.1.0"
-description = "Sistema de recomendación en tiempo real para e-commerce (FastAPI + AWS Lambda + S3 + LangChain)"
+description = "Real-time product recommendation system for e-commerce (FastAPI + AWS Lambda + S3 + LangChain)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.43.111",
     "fastapi>=0.143.0",
+    "mangum>=0.22.0",
     "pydantic>=2.14.1",
-    "uvicorn[standard]>=0.54.0",
 ]
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-
-[tool.ruff]
-line-length = 120
 
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pandas>=3.0.6",
+    "pyarrow>=26.0.0",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
+    "uvicorn[standard]>=0.54.0",
 ]
+
+# src layout: `uv sync` installs `app` and `training` in editable mode,
+# so they can be imported from tests, scripts and uvicorn.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app", "src/training"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+extend-exclude = ["build"]

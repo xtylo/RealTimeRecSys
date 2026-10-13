@@ -1,227 +1,191 @@
-# Plan — Proyecto "RealTime RecSys" (Python + FastAPI + AWS Lambda + S3 + LangChain)
+# Implementation Plan — RealTime RecSys
 
-## Objetivo
-Armar en **7 días, con 1 hora diaria**, la **base funcional** de un sistema de recomendación en tiempo real para e-commerce. La idea es tener algo que puedas revisar, correr y explicar, y aprender en el camino los fundamentos del stack.
+Build the **working foundation** of a real-time e-commerce recommendation system in **8 short sessions of ~1 hour each**, learning the stack along the way: Python, FastAPI, AWS Lambda, S3, LangChain and Terraform.
 
-**Todo se desarrolla en local y cuesta $0.** No necesitas cuenta de AWS para los días 1–7: Lambda, S3 y los embeddings se emulan en tu máquina. El **día 8 (opcional)** despliega una sola vez a AWS real para tener una URL viva en el README.
+**Days 1–7 run entirely on your machine for $0** (no AWS account needed). S3, Lambda and the embeddings model are emulated with Docker. **Day 8 (optional)** deploys once to real AWS with Terraform, so the README can show a live URL and real measurements.
 
-Al terminar la semana el sistema debe:
-1. Recibir eventos del usuario (`view`, `cart`, `purchase`).
-2. Recomendar productos que **cambian según lo que el usuario hace en la sesión**.
-3. Cargar su "modelo" desde **S3** (emulado con moto).
-4. Correr como **AWS Lambda** (emulada con `sam local`).
-5. Tener una búsqueda en lenguaje natural con **LangChain** (embeddings locales con Ollama).
+By the end, the system:
+1. Receives user events (`view`, `cart`, `purchase`).
+2. Returns recommendations that **change with what the user does in the current session**.
+3. Loads its "model" from **S3**.
+4. Runs as an **AWS Lambda** function (locally via the Runtime Interface Emulator).
+5. Offers natural-language product search with **LangChain**.
 
-> **Regla de oro:** cada día tiene un "Listo cuando". Si se acaba la hora, termina ese criterio y para ahí. No adelantes el día siguiente.
+> **Golden rule:** every day has a "Done when" checklist. When the hour is up, finish that checklist and stop. Do not start the next day early.
 
-### Lo que NO entra en esta semana (va en "Siguientes pasos")
-DynamoDB, Item2Vec/FAISS para recomendaciones, métricas NDCG, pruebas de carga y frontend. Primero la base; después la sofisticación.
+### Out of scope for this first pass (see "Next steps")
+DynamoDB, Item2Vec/FAISS candidates, NDCG evaluation, frontend. Foundation first, sophistication later.
 
 ---
 
-## Stack: local vs AWS real
+## Phases and days
 
-| Pieza | Desarrollo local ($0) | AWS real (día 8) | Equivalente .NET/Azure |
+| Phase (README) | Days |
+|---|---|
+| 1. Design & data | Day 0 (setup), Day 1 (FastAPI skeleton) ✅, Day 2 (data + baseline artifacts) |
+| 2. Backend: FastAPI + AWS Lambda | Day 3 (real-time API), Day 4 (S3), Day 5 (Lambda) |
+| 3. LangChain integration | Day 6 (semantic search) |
+| 4. Deploy, latency & load testing | Day 7 (CI + k6 locally), Day 8 (Terraform + AWS + k6) |
+
+---
+
+## Stack: local vs real AWS
+
+| Piece | Local development ($0) | Real AWS (Day 8) | .NET / Azure equivalent |
 |---|---|---|---|
-| Lenguaje | **Python 3.12** | — | C# |
-| Paquetes / entorno | **uv** + `pyproject.toml` | — | `dotnet` CLI + `.csproj` + NuGet |
-| API | **FastAPI** + **Pydantic** | — | Minimal APIs + records / DataAnnotations |
-| Inyección de dependencias | `Depends()` de FastAPI | — | DI de ASP.NET Core |
-| Datos (offline) | **pandas** + Parquet | — | LINQ sobre colecciones |
-| Tests | **pytest** + **moto** (mock en memoria) | — | xUnit + mocks |
-| Cómputo | `sam local start-api` (Lambda en Docker) | **AWS Lambda** (contenedor) + Mangum | Azure Functions / Core Tools |
-| API pública | SAM local en `127.0.0.1:3000` | **API Gateway (HTTP API)** | APIM / Function URL |
-| Almacenamiento | **moto server** (S3 falso en `:5000`) | **S3** | Azurite → Blob Storage |
-| Embeddings | **Ollama** + `nomic-embed-text` | **Bedrock** Titan Embeddings V2 | Ollama → Azure OpenAI |
-| Vector store | `InMemoryVectorStore` de LangChain (JSON) | El mismo | Semantic Kernel memory |
-| IaC | **AWS SAM** (`template.yaml`) | El mismo | Bicep / ARM |
+| Language | **Python 3.12** | Lambda runtime `python3.12` | C# |
+| Packages / environment | **uv** + `pyproject.toml` + `uv.lock` | Same lock, `build_lambda.py` | `dotnet` CLI + `.csproj` + NuGet |
+| API | **FastAPI** + **Pydantic** | Same code | Minimal APIs + records / DataAnnotations |
+| Dependency injection | FastAPI `Depends()` | Same | ASP.NET Core DI |
+| Offline data | **pandas** + Parquet | Same | LINQ over collections |
+| Tests | **pytest** + **moto** (in-memory AWS mocks) | — | xUnit + mocks |
+| Compute | Lambda base image + Runtime Interface Emulator (`docker compose`) | **AWS Lambda** + **Mangum** | Azure Functions Core Tools → Azure Functions |
+| HTTP entry point | `invoke_lambda.py` (builds the API Gateway event) | **API Gateway (HTTP API)** | APIM / Function URL |
+| Storage | **moto server** (fake S3 on `:5000`) | **Amazon S3** | Azurite → Blob Storage |
+| Embeddings | **Ollama** + `nomic-embed-text` | **Amazon Bedrock** Titan Embeddings V2 | Ollama → Azure OpenAI |
+| Vector store | LangChain `InMemoryVectorStore` (JSON file) | Same | Semantic Kernel memory |
+| Infrastructure as code | — | **Terraform** | Bicep / ARM |
+| Load testing | **k6** (Docker) | k6 against API Gateway | Azure Load Testing |
 | CI | **GitHub Actions** | — | Azure DevOps Pipelines |
 
-> **Por qué moto y no LocalStack:** desde marzo de 2026 LocalStack pide cuenta y auth token (tiene un plan gratis no comercial). Aquí solo necesitamos emular S3, y moto lo hace gratis, sin registro y es la misma librería que ya usas en los tests.
+> **Why moto and not LocalStack:** since March 2026 LocalStack requires an account and an auth token (with a free non-commercial plan). This project only needs S3 emulated. moto does that for free with no sign-up, and it is the same library used in the tests.
 
 ---
 
-## Arquitectura de la base
+## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Offline["Offline (training/)"]
-        CSV[REES46 CSV<br/>muestra 200K eventos] --> BUILD[build.py<br/>pandas]
+    subgraph Offline["Offline (src/training)"]
+        CSV[REES46 CSV<br/>200K-event sample] --> BUILD[build_artifacts.py<br/>pandas]
         BUILD --> ART[popular.json<br/>related.json]
         CSV --> IDX[build_index.py<br/>LangChain]
         IDX --> VEC[search_index.json]
     end
-    ART -->|seed-s3.ps1| S3[(S3<br/>local: moto :5000<br/>real: AWS S3)]
-    VEC -->|seed-s3.ps1| S3
-    subgraph Runtime["Runtime"]
-        C[curl / Swagger] --> GW[local: sam local :3000<br/>real: API Gateway]
+    ART -->|upload_model.py| S3[(S3<br/>local: moto :5000<br/>AWS: S3)]
+    VEC -->|upload_model.py| S3
+    subgraph Runtime["Online"]
+        C[curl / Swagger / k6] --> GW[local: uvicorn :8000 or invoke_lambda.py<br/>AWS: API Gateway]
         GW --> L[Lambda<br/>FastAPI + Mangum]
-        L -->|cold start: carga artefactos| S3
-        L -->|embedding del query| EMB[local: Ollama :11434<br/>real: Bedrock]
+        L -->|cold start: load artifacts| S3
+        L -->|query embedding| EMB[local: Ollama :11434<br/>AWS: Bedrock]
     end
 ```
 
 ### Endpoints
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `POST` | `/events` | Registra un evento en la sesión |
-| `GET` | `/recommendations?session_id=...&k=10` | Recomendaciones según la sesión (o populares si está vacía) |
-| `POST` | `/search` | Búsqueda en lenguaje natural (LangChain) |
+| Method | Route | Purpose | Day |
+|---|---|---|---|
+| `GET` | `/health` | Health check | 1 |
+| `GET` | `/recommendations?session_id=...&k=10` | Session-based recommendations (popular items when the session is empty) | 1 → 3 |
+| `POST` | `/events` | Record an event in the session | 3 |
+| `POST` | `/search` | Natural-language product search (LangChain) | 6 |
 
-### Estructura final del repo
+### Final repository layout
 ```
 realtime-recsys/
-├── app/
-│   ├── __init__.py
-│   ├── handler.py                # Mangum → Lambda
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── main.py               # FastAPI app, endpoints, lifespan
-│   │   └── schemas.py            # modelos Pydantic
-│   ├── domain/
-│   │   ├── __init__.py
-│   │   └── recommender.py        # lógica pura, sin AWS
-│   └── infrastructure/
-│       ├── __init__.py
-│       ├── aws.py                # cliente S3 (local o real)
-│       ├── artifacts.py          # carga local o desde S3
-│       ├── session_store.py      # sesión en memoria
-│       ├── embeddings.py         # Ollama o Bedrock
-│       └── search.py             # índice semántico
-├── training/
-│   ├── build.py                  # populares + co-ocurrencia
-│   └── build_index.py            # índice semántico con LangChain
-├── scripts/
-│   ├── local-env.ps1             # variables de entorno para modo local
-│   └── seed-s3.ps1               # sube artefactos al S3 local
+├── .devcontainer/
+│   ├── devcontainer.json          # optional Dev Container
+│   └── docker-compose.yml         # adds the "dev" container
+├── .github/workflows/ci.yml       # Day 7
+├── docker-compose.yml             # s3 (moto), ollama, lambda (RIE), k6
+├── loadtest/k6.js
+├── src/
+│   ├── app/                       # importable package `app`
+│   │   ├── main.py                # FastAPI app, endpoints, init_state, lifespan
+│   │   ├── schemas.py             # Pydantic models
+│   │   ├── domain/
+│   │   │   └── recommender.py     # pure ranking logic (no I/O)      Day 3
+│   │   └── infrastructure/
+│   │       ├── session_store.py   # in-memory session                Day 3
+│   │       ├── artifacts.py       # load artifacts (local or S3)     Day 3-4
+│   │       ├── aws.py             # S3 client (local or real)        Day 4
+│   │       ├── embeddings.py      # Ollama or Bedrock                Day 6
+│   │       └── search.py          # semantic index                   Day 6
+│   ├── lambda/
+│   │   └── handler.py             # Lambda entry point (Mangum)
+│   ├── training/                  # importable package `training`
+│   │   ├── build_artifacts.py     # popularity + co-occurrence       Day 2
+│   │   └── build_index.py         # LangChain search index           Day 6
+│   ├── scripts/
+│   │   ├── build_lambda.py        # builds build/lambda + build/lambda.zip
+│   │   ├── invoke_lambda.py       # calls the local Lambda with an API Gateway event
+│   │   ├── upload_model.py        # uploads artifacts/ to S3 (local or AWS)
+│   │   └── local-env.ps1          # env vars for local mode (Windows)
+│   └── infra/terraform/           # API Gateway, Lambda, S3, IAM, logs   Day 8
 ├── tests/
-│   ├── test_recommender.py
-│   ├── test_api.py
-│   └── test_artifacts_s3.py
-├── data/                         # (gitignored) CSV y Parquet
-├── artifacts/                    # (gitignored) salida del training
-├── .github/workflows/ci.yml
-├── Dockerfile
-├── .dockerignore
-├── .gitignore
-├── env.json                      # variables para sam local
-├── template.yaml                 # AWS SAM
+├── data/          (git-ignored)   # raw CSV and Parquet
+├── artifacts/     (git-ignored)   # training output
+├── build/         (git-ignored)   # Lambda package
+├── docs/
+│   ├── PLAN.md
+│   └── adr/
 ├── pyproject.toml
-├── requirements.txt              # generado con uv export
-└── README.md
+└── uv.lock
 ```
 
+`src/app` and `src/training` are installed in editable mode by `uv sync` (see `[tool.hatch...]` in `pyproject.toml`). So `import app` works from tests, scripts and uvicorn without touching `PYTHONPATH`.
+
+`src/lambda` is **not** a package (`lambda` is a Python keyword). `build_lambda.py` copies `handler.py` to the root of the Lambda package.
+
 ---
 
-## Día 0 — Preparación (una sola vez, ~20 min, sin cuenta de AWS)
+## Day 0 — Setup (once, ~20 min, no AWS account)
 
-- [ ] Instalar:
-  - Python 3.12
-  - [uv](https://docs.astral.sh/uv/getting-started/installation/) → `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- [ ] Install:
+  - [uv](https://docs.astral.sh/uv/getting-started/installation/): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
   - Docker Desktop
-  - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) (la usaremos contra el S3 falso)
-  - [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-  - [Ollama](https://ollama.com/download) y luego `ollama pull nomic-embed-text`
-- [ ] Permitir scripts locales de PowerShell (una vez): `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
-- [ ] Descargar de Kaggle el dataset **"eCommerce behavior data from multi category store"** (autor: mkechinov). Solo necesitas el archivo **`2019-Oct.csv`**.
-- [ ] Verificar: `uv --version`, `docker --version`, `sam --version`, `aws --version`, `ollama list`.
+  - VS Code. Open the repo and install the recommended extensions (`@recommended` in the Extensions view).
+- [ ] Allow local PowerShell scripts (once): `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+- [ ] Download the Kaggle dataset **"eCommerce behavior data from multi category store"** (author: mkechinov). You only need **`2019-Oct.csv`** (~5 GB).
+- [ ] Check: `uv --version`, `docker --version`, `docker compose version`.
+
+Not needed until Day 8: AWS account, AWS CLI, Terraform.
+
+> **Alternative:** "Dev Containers: Reopen in Container" gives you Python 3.12, uv, AWS CLI and Terraform inside Linux, with S3 and Ollama already wired. Commands in this plan use PowerShell on Windows. Inside the container, use the same commands in bash. You can skip `local-env.ps1` there, because the variables are already set.
 
 ---
 
-## Día 1 — Python moderno + FastAPI
+## Day 1 — Modern Python + FastAPI ✅
 
-**Aprendes:** uv, estructura de un proyecto Python, Pydantic, FastAPI básico y Swagger automático.
+**You learn:** uv, project layout, Pydantic, FastAPI basics, automatic Swagger.
 
-### Pasos
-1. Crear el proyecto:
-   ```bash
-   uv init realtime-recsys --app --python 3.12
-   cd realtime-recsys
-   uv add fastapi "uvicorn[standard]" pydantic
-   uv add --dev pytest httpx ruff
-   ```
-2. Borrar el `main.py` que genera uv y crear las carpetas `app/`, `app/api/`, `app/domain/`, `app/infrastructure/`, `tests/` y `scripts/`. Las de `app` llevan cada una un `__init__.py` vacío.
-3. Agregar al final de `pyproject.toml`, para que pytest encuentre el paquete `app`:
-   ```toml
-   [tool.pytest.ini_options]
-   pythonpath = ["."]
-   ```
-4. Crear `.gitignore`:
-   ```
-   .venv/
-   __pycache__/
-   data/
-   artifacts/
-   .aws-sam/
-   .pytest_cache/
-   .ruff_cache/
-   ```
-5. `app/api/schemas.py`:
-   ```python
-   from typing import Literal
+Already in the repo:
+- `pyproject.toml` / `uv.lock`: dependencies (`fastapi`, `pydantic`, `mangum`, `boto3`) and dev tools (`pytest`, `httpx`, `ruff`, `uvicorn`).
+- `src/app/schemas.py`: `Event` and `Recommendation`.
+- `src/app/main.py`: `GET /health` and `GET /recommendations` with hard-coded data.
+- `tests/test_health.py`: health check and 422 validation.
+- `src/lambda/handler.py` + `tests/test_lambda_handler.py`: the same app called as a Lambda function.
 
-   from pydantic import BaseModel
+```powershell
+uv sync
+uv run pytest -v
+uv run uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
+```
 
-   EventType = Literal["view", "cart", "purchase"]
-
-
-   class Event(BaseModel):
-       session_id: str
-       product_id: int
-       event_type: EventType
-
-
-   class Recommendation(BaseModel):
-       product_id: int
-       score: float
-   ```
-6. `app/api/main.py` (versión inicial con datos fijos):
-   ```python
-   from fastapi import FastAPI
-
-   from app.api.schemas import Recommendation
-
-   app = FastAPI(title="RealTime RecSys")
-
-
-   @app.get("/health")
-   def health():
-       return {"status": "ok"}
-
-
-   @app.get("/recommendations", response_model=list[Recommendation])
-   def recommendations(session_id: str, k: int = 10):
-       return [Recommendation(product_id=1, score=0.9), Recommendation(product_id=2, score=0.5)]
-   ```
-7. Correr: `uv run uvicorn app.api.main:app --reload` y abrir http://127.0.0.1:8000/docs
-8. `git init`, primer commit y repo público en GitHub.
-
-### Listo cuando
-- [ ] Swagger (`/docs`) muestra los 2 endpoints y responden.
-- [ ] Si mandas `k=abc` (desde el navegador, curl o REST Client; Swagger lo bloquea antes de enviarlo), FastAPI regresa un **422** por sí solo. Esa es la validación de Pydantic.
-
-**Commit sugerido:** `chore: project skeleton with FastAPI`
+### Done when
+- [x] Swagger (`/docs`) shows both endpoints and they respond.
+- [x] `http://127.0.0.1:8000/recommendations?session_id=s1&k=abc` (from the browser, curl or REST Client) returns **422**. Swagger blocks the invalid value before sending it, so test it outside Swagger. This is Pydantic validation.
 
 ---
 
-## Día 2 — Datos y el primer recomendador (offline)
+## Day 2 — Data and the first recommender (offline)
 
-**Aprendes:** pandas, Parquet y una recomendación por co-ocurrencia ("quien vio X también vio Y").
+**You learn:** pandas, Parquet, and co-occurrence recommendations ("people who viewed X also viewed Y").
 
-### Pasos
-1. Dependencias solo de desarrollo (no van a Lambda): `uv add --dev pandas pyarrow`
-2. Copiar `2019-Oct.csv` a `data/raw/`.
-3. Explorar 5 minutos en un REPL (`uv run python`):
+### Steps
+1. Dev-only dependencies (they never go to Lambda): `uv add --dev pandas pyarrow`
+2. Copy `2019-Oct.csv` to `data/raw/`.
+3. Explore for 5 minutes in a REPL (`uv run python`), or in a notebook with Data Wrangler:
    ```python
    import pandas as pd
    df = pd.read_csv("data/raw/2019-Oct.csv", nrows=1000)
    df.head(); df.dtypes; df["event_type"].value_counts()
    ```
-   Columnas: `event_time, event_type, product_id, category_id, category_code, brand, price, user_id, user_session`.
-4. `training/build.py`:
+   Columns: `event_time, event_type, product_id, category_id, category_code, brand, price, user_id, user_session`.
+4. `src/training/build_artifacts.py`:
    ```python
-   """Construye los artefactos del recomendador a partir de una muestra de REES46."""
+   """Build the recommender artifacts from a sample of the REES46 dataset."""
+
    import itertools
    import json
    from collections import Counter, defaultdict
@@ -240,7 +204,7 @@ realtime-recsys/
        PROCESSED.mkdir(parents=True, exist_ok=True)
        ARTIFACTS.mkdir(exist_ok=True)
 
-       # nrows evita cargar los ~5 GB completos
+       # nrows avoids loading the full ~5 GB file
        df = pd.read_csv(RAW, nrows=SAMPLE_ROWS).dropna(subset=["user_session"])
        df.to_parquet(PROCESSED / "events.parquet", index=False)
        (
@@ -249,12 +213,12 @@ realtime-recsys/
            .to_parquet(PROCESSED / "products.parquet", index=False)
        )
 
-       # 1) Populares: suma ponderada por tipo de evento
+       # 1) Popular items: weighted sum by event type
        df["weight"] = df["event_type"].map(EVENT_WEIGHTS)
        popular = df.groupby("product_id")["weight"].sum().nlargest(100).index
        (ARTIFACTS / "popular.json").write_text(json.dumps([int(p) for p in popular]))
 
-       # 2) Co-ocurrencia: productos vistos en la misma sesión
+       # 2) Co-occurrence: products seen in the same session
        cooc: dict[int, Counter] = defaultdict(Counter)
        sessions = df.groupby("user_session")["product_id"].apply(lambda s: list(dict.fromkeys(s)))
        for items in sessions:
@@ -263,38 +227,38 @@ realtime-recsys/
        related = {str(a): [int(b) for b, _ in c.most_common(20)] for a, c in cooc.items()}
        (ARTIFACTS / "related.json").write_text(json.dumps(related))
 
-       print(f"eventos={len(df):,} productos_con_relacionados={len(related):,}")
+       print(f"events={len(df):,} products_with_related={len(related):,}")
 
 
    if __name__ == "__main__":
        main()
    ```
-5. Correr: `uv run python training/build.py`
-6. Probar a mano:
-   ```bash
+5. Run it from the repo root: `uv run python -m training.build_artifacts`
+6. Inspect the result:
+   ```powershell
    uv run python -c "import json; r=json.load(open('artifacts/related.json')); k=next(iter(r)); print(k, r[k][:10])"
    ```
 
-### Listo cuando
-- [ ] Existen `artifacts/popular.json` y `artifacts/related.json`.
-- [ ] Puedes tomar un `product_id` y ver sus 10 relacionados.
-- [ ] Entiendes qué hace `groupby` y por qué `dict.fromkeys` quita duplicados conservando el orden.
+### Done when
+- [ ] `artifacts/popular.json` and `artifacts/related.json` exist.
+- [ ] Given a `product_id`, you can list its 10 related products.
+- [ ] You can explain what `groupby` does and why `dict.fromkeys` removes duplicates while keeping order.
 
-**Commit sugerido:** `feat(training): popularity and co-occurrence artifacts`
+**Suggested commit:** `feat(training): popularity and co-occurrence artifacts`
 
 ---
 
-## Día 3 — Tiempo real: eventos + sesión + DI + tests
+## Day 3 — Real time: events + session + DI + tests
 
-**Aprendes:** separar dominio de infraestructura, `lifespan` (startup), `Depends()` y pytest con `TestClient`.
+**You learn:** separating domain from infrastructure, initialization that works for both uvicorn and Lambda, `Depends()`, pytest fixtures.
 
-### Pasos
-1. `app/domain/recommender.py` (lógica pura, sin I/O):
+### Steps
+1. `src/app/domain/recommender.py` (pure logic, no I/O):
    ```python
    from collections import Counter
 
    EVENT_WEIGHTS = {"view": 1.0, "cart": 3.0, "purchase": 5.0}
-   RECENCY_DECAY = 0.8  # el evento más reciente pesa más
+   RECENCY_DECAY = 0.8  # the most recent event weighs the most
 
 
    class Recommender:
@@ -307,14 +271,14 @@ realtime-recsys/
            scores: Counter[int] = Counter()
 
            for age, (pid, event_type) in enumerate(reversed(history)):
-               weight = EVENT_WEIGHTS[event_type] * (RECENCY_DECAY ** age)
+               weight = EVENT_WEIGHTS[event_type] * (RECENCY_DECAY**age)
                for rank, candidate in enumerate(self._related.get(str(pid), [])):
                    if candidate not in seen:
                        scores[candidate] += weight / (rank + 1)
 
            result = [(pid, round(score, 4)) for pid, score in scores.most_common(k)]
 
-           # Relleno con populares (y cold start cuando no hay historial)
+           # Fill with popular items (also the cold-start answer when there is no history)
            for pid in self._popular:
                if len(result) >= k:
                    break
@@ -322,13 +286,13 @@ realtime-recsys/
                    result.append((pid, 0.0))
            return result
    ```
-2. `app/infrastructure/session_store.py`:
+2. `src/app/infrastructure/session_store.py`:
    ```python
    from collections import defaultdict, deque
 
 
    class InMemorySessionStore:
-       """Guarda las últimas N interacciones por sesión. OJO: vive en memoria del proceso."""
+       """Keeps the last N interactions per session. WARNING: lives in the process memory."""
 
        def __init__(self, max_events: int = 20):
            self._sessions: dict[str, deque] = defaultdict(lambda: deque(maxlen=max_events))
@@ -339,7 +303,7 @@ realtime-recsys/
        def get(self, session_id: str) -> list[tuple[int, str]]:
            return list(self._sessions.get(session_id, []))
    ```
-3. `app/infrastructure/artifacts.py` (por ahora solo local; S3 llega el día 4):
+3. `src/app/infrastructure/artifacts.py` (local files for now; S3 arrives on Day 4):
    ```python
    import json
    import os
@@ -354,25 +318,29 @@ realtime-recsys/
 
        return read("related.json"), read("popular.json")
    ```
-4. Reemplazar `app/api/main.py`:
+4. Replace `src/app/main.py`:
    ```python
    from contextlib import asynccontextmanager
    from typing import Annotated
 
    from fastapi import Depends, FastAPI, Request
 
-   from app.api.schemas import Event, Recommendation
    from app.domain.recommender import Recommender
    from app.infrastructure.artifacts import load_artifacts
    from app.infrastructure.session_store import InMemorySessionStore
+   from app.schemas import Event, Recommendation
+
+
+   def init_state(app: FastAPI) -> None:
+       """Load the model and create shared objects. Runs once per process (or Lambda cold start)."""
+       related, popular = load_artifacts()
+       app.state.recommender = Recommender(related, popular)
+       app.state.sessions = InMemorySessionStore()
 
 
    @asynccontextmanager
    async def lifespan(app: FastAPI):
-       # Se ejecuta una vez al arrancar (en Lambda: en cada cold start)
-       related, popular = load_artifacts()
-       app.state.recommender = Recommender(related, popular)
-       app.state.sessions = InMemorySessionStore()
+       init_state(app)  # uvicorn and TestClient. Lambda calls init_state from handler.py instead.
        yield
 
 
@@ -407,7 +375,56 @@ realtime-recsys/
        history = sessions.get(session_id)
        return [Recommendation(product_id=p, score=s) for p, s in recommender.recommend(history, k)]
    ```
-5. `tests/test_recommender.py`:
+5. Update `src/lambda/handler.py` so Lambda initializes once per cold start:
+   ```python
+   from mangum import Mangum
+
+   from app.main import app, init_state
+
+   init_state(app)  # module level = once per cold start, reused while the instance is warm
+   handler = Mangum(app, lifespan="off")
+   ```
+   > **Why not just use the lifespan?** Mangum runs the FastAPI lifespan on *every* invocation. With `lifespan="on"` the model would be reloaded and the session store recreated on each request.
+6. Tests. Every test now gets a tiny model on disk. Create `tests/conftest.py`:
+   ```python
+   import json
+
+   import pytest
+   from fastapi.testclient import TestClient
+
+
+   @pytest.fixture(autouse=True)
+   def local_artifacts(tmp_path, monkeypatch):
+       """Tiny model on disk + a clean, local-only environment for every test."""
+       (tmp_path / "related.json").write_text(json.dumps({"1": [2, 3]}))
+       (tmp_path / "popular.json").write_text(json.dumps([9, 8]))
+       monkeypatch.setenv("ARTIFACTS_SOURCE", "local")
+       monkeypatch.setenv("ARTIFACTS_DIR", str(tmp_path))
+       monkeypatch.delenv("S3_ENDPOINT_URL", raising=False)
+       monkeypatch.delenv("ENABLE_SEARCH", raising=False)
+       return tmp_path
+
+
+   @pytest.fixture
+   def client():
+       from app.main import app
+
+       with TestClient(app) as test_client:  # "with" runs the lifespan (init_state)
+           yield test_client
+   ```
+7. Replace `tests/test_health.py`:
+   ```python
+   def test_health(client):
+       response = client.get("/health")
+       assert response.status_code == 200
+       assert response.json() == {"status": "ok"}
+
+
+   def test_invalid_k_returns_422(client):
+       response = client.get("/recommendations", params={"session_id": "s1", "k": "abc"})
+       assert response.status_code == 422
+   ```
+8. `tests/test_recommender.py`:
    ```python
    from app.domain.recommender import Recommender
 
@@ -428,75 +445,101 @@ realtime-recsys/
        result = rec.recommend([(1, "view"), (2, "view")], k=5)
        assert 2 not in [p for p, _ in result]
    ```
-   > En `test_cart_weighs_more_than_view`: el producto 2 es el más reciente (decay 1.0, view → 1.0) y el 1 tiene decay 0.8 (cart → 3.0 × 0.8 = 2.4). Gana el cart. Haz la cuenta tú mismo para entender el scoring.
-6. `tests/test_api.py`:
+   > In `test_cart_weighs_more_than_view`, product 2 is the most recent event (decay 1.0, view → 1.0). Product 1 has decay 0.8 (cart → 3.0 × 0.8 = 2.4), so the cart wins. Do the math yourself to understand the scoring.
+9. `tests/test_api.py`:
    ```python
-   import json
+   def test_recommendations_change_after_event(client):
+       before = client.get("/recommendations", params={"session_id": "s1", "k": 2}).json()
+       client.post("/events", json={"session_id": "s1", "product_id": 1, "event_type": "view"})
+       after = client.get("/recommendations", params={"session_id": "s1", "k": 2}).json()
 
-   from fastapi.testclient import TestClient
-
-
-   def test_recommendations_change_after_event(tmp_path, monkeypatch):
-       (tmp_path / "related.json").write_text(json.dumps({"1": [2, 3]}))
-       (tmp_path / "popular.json").write_text(json.dumps([9, 8]))
-       # Aísla el test de las variables del modo local (día 4+)
-       monkeypatch.setenv("ARTIFACTS_SOURCE", "local")
-       monkeypatch.setenv("ARTIFACTS_DIR", str(tmp_path))
-       monkeypatch.delenv("ENABLE_SEARCH", raising=False)
-
-       from app.api.main import app
-
-       with TestClient(app) as client:  # el "with" dispara el lifespan
-           before = client.get("/recommendations", params={"session_id": "s1", "k": 2}).json()
-           client.post("/events", json={"session_id": "s1", "product_id": 1, "event_type": "view"})
-           after = client.get("/recommendations", params={"session_id": "s1", "k": 2}).json()
-
-       assert [r["product_id"] for r in before] == [9, 8]
-       assert [r["product_id"] for r in after] == [2, 3]
+       assert [r["product_id"] for r in before] == [9, 8]  # empty session -> popular
+       assert [r["product_id"] for r in after] == [2, 3]  # related to product 1
    ```
-7. Correr `uv run pytest -v` y `uv run ruff check .`
-8. Probar en Swagger con un `product_id` real de tu `related.json`: manda 2–3 eventos y mira cómo cambian las recomendaciones.
+10. Replace `tests/test_lambda_handler.py`. The handler now loads the model at import time, so it must be loaded *after* the fixture prepares the environment:
+    ```python
+    """Invoke the Lambda handler in-process with an API Gateway HTTP API (v2) event."""
 
-### Listo cuando
-- [ ] Los tests pasan.
-- [ ] En Swagger ves que las recomendaciones **cambian después de cada evento**. Ese es el "tiempo real".
+    import importlib.util
+    import json
+    from pathlib import Path
 
-**Commit sugerido:** `feat(api): session-aware recommendations with events endpoint`
+    import pytest
+
+    SRC = Path(__file__).resolve().parents[1] / "src"
+
+
+    def load_module(name: str, path: Path):
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+
+    # `lambda` is a Python keyword, so these files are loaded by path instead of imported.
+    invoke_lambda = load_module("invoke_lambda", SRC / "scripts" / "invoke_lambda.py")
+
+
+    class FakeLambdaContext:
+        function_name = "realtime-recsys-test"
+
+
+    @pytest.fixture
+    def handler():
+        # Loaded inside a fixture so the autouse `local_artifacts` fixture runs first (cold start).
+        return load_module("lambda_handler", SRC / "lambda" / "handler.py").handler
+
+
+    def call(handler, method, path, body=None):
+        response = handler(invoke_lambda.build_event(method, path, body), FakeLambdaContext())
+        return response["statusCode"], json.loads(response["body"])
+
+
+    def test_health_through_lambda_handler(handler):
+        assert call(handler, "GET", "/health") == (200, {"status": "ok"})
+
+
+    def test_validation_error_through_lambda_handler(handler):
+        status, _ = call(handler, "GET", "/recommendations?session_id=s1&k=abc")
+        assert status == 422
+
+
+    def test_session_survives_between_warm_invocations(handler):
+        event = json.dumps({"session_id": "s1", "product_id": 1, "event_type": "view"})
+        call(handler, "POST", "/events", event)
+        _, body = call(handler, "GET", "/recommendations?session_id=s1&k=2")
+        assert [r["product_id"] for r in body] == [2, 3]
+    ```
+11. Run `uv run pytest -v` and `uv run ruff check .`
+12. Try it in Swagger with a real `product_id` from your `related.json` (the app reads `artifacts/` by default). Send 2–3 events and watch the recommendations change.
+
+### Done when
+- [ ] All tests pass.
+- [ ] In Swagger the recommendations **change after every event**. That is the "real time".
+- [ ] You can explain why Lambda initializes in `handler.py` and not in the lifespan.
+
+**Suggested commit:** `feat(api): session-aware recommendations with events endpoint`
 
 ---
 
-## Día 4 — S3 (emulado con moto server)
+## Day 4 — S3 (emulated with moto)
 
-**Aprendes:** boto3, buckets y prefijos, endpoints configurables (local vs real) y mocks de AWS en tests.
+**You learn:** boto3, buckets and prefixes, configurable endpoints (local vs real), mocking AWS in tests, docker compose.
 
-### Pasos
-1. Dependencias:
-   ```bash
-   uv add boto3
-   uv add --dev "moto[server]"
-   ```
-2. `scripts/local-env.ps1`: todas las variables del modo local en un solo lugar.
+### Steps
+1. Test dependency (boto3 is already a runtime dependency): `uv add --dev "moto[s3]"`
+2. Start the fake S3 and switch your terminal to local mode:
    ```powershell
-   # Uso: . .\scripts\local-env.ps1   (con el punto al inicio, para que aplique a tu terminal)
-   $env:AWS_ACCESS_KEY_ID     = "test"     # moto acepta cualquier credencial
-   $env:AWS_SECRET_ACCESS_KEY = "test"
-   $env:AWS_DEFAULT_REGION    = "us-east-1"
-   $env:ARTIFACTS_SOURCE      = "s3"
-   $env:ARTIFACTS_BUCKET      = "recsys-local"
-   $env:ARTIFACTS_PREFIX      = "models/v1"
-   $env:S3_ENDPOINT_URL       = "http://localhost:5000"
-   $env:EMBEDDINGS_PROVIDER   = "ollama"
-   $env:ENABLE_SEARCH         = "false"   # cambia a "true" en el día 6
-   Write-Host "Modo local activo (S3 en $env:S3_ENDPOINT_URL)"
+   docker compose up -d                 # moto on http://localhost:5000
+   . .\src\scripts\local-env.ps1         # the leading dot matters
    ```
-3. `scripts/seed-s3.ps1`. moto guarda todo **en memoria**: cada vez que lo reinicias, el bucket desaparece y hay que volver a sembrarlo.
+   Open http://localhost:5000/moto-api/ to see moto's dashboard.
+3. Upload your artifacts. moto keeps everything **in memory**, so repeat this after every restart:
    ```powershell
-   $ep = "http://localhost:5000"
-   aws --endpoint-url $ep s3 mb s3://recsys-local
-   aws --endpoint-url $ep s3 cp artifacts/ s3://recsys-local/models/v1/ --recursive
-   aws --endpoint-url $ep s3 ls s3://recsys-local/models/v1/ --recursive
+   uv run python src/scripts/upload_model.py --create-bucket
    ```
-4. `app/infrastructure/aws.py`, el único lugar que decide si S3 es local o real:
+   Read `src/scripts/upload_model.py`: it is the same boto3 code you would use against AWS.
+4. `src/app/infrastructure/aws.py`, the only place that decides whether S3 is local or real:
    ```python
    import os
 
@@ -505,12 +548,12 @@ realtime-recsys/
 
 
    def s3_client():
-       # Vacío o no definido = AWS real. Con valor = S3 local (moto).
+       # Empty or unset = real AWS. A value = local S3 (moto).
        endpoint = os.getenv("S3_ENDPOINT_URL") or None
        config = Config(s3={"addressing_style": "path"}) if endpoint else None
        return boto3.client("s3", endpoint_url=endpoint, config=config)
    ```
-5. Actualizar `app/infrastructure/artifacts.py` para leer de **local o S3**:
+5. Update `src/app/infrastructure/artifacts.py` to read from **local files or S3**:
    ```python
    import json
    import os
@@ -536,7 +579,7 @@ realtime-recsys/
 
        return read("related.json"), read("popular.json")
    ```
-6. `tests/test_artifacts_s3.py` (moto en memoria, sin servidor):
+6. `tests/test_artifacts_s3.py` (moto in memory, no server needed):
    ```python
    import json
 
@@ -552,7 +595,6 @@ realtime-recsys/
        monkeypatch.setenv("ARTIFACTS_SOURCE", "s3")
        monkeypatch.setenv("ARTIFACTS_BUCKET", "test-bucket")
        monkeypatch.setenv("ARTIFACTS_PREFIX", "models/v1")
-       monkeypatch.delenv("S3_ENDPOINT_URL", raising=False)  # que use el mock, no el servidor
 
        s3 = boto3.client("s3", region_name="us-east-1")
        s3.create_bucket(Bucket="test-bucket")
@@ -563,168 +605,77 @@ realtime-recsys/
        assert related == {"1": [2]}
        assert popular == [5]
    ```
-7. Probar de punta a punta con **2 terminales**:
+7. Run the API reading from the fake S3 (same terminal where you loaded `local-env.ps1`):
    ```powershell
-   # Terminal 1: S3 falso
-   uv run moto_server -H 0.0.0.0 -p 5000
-
-   # Terminal 2: sembrar y correr la API leyendo de "S3"
-   . .\scripts\local-env.ps1
-   .\scripts\seed-s3.ps1
-   uv run uvicorn app.api.main:app --reload
+   uv run uvicorn app.main:app --reload
    ```
-   Extra: abre http://localhost:5000/moto-api/ para ver el dashboard de moto con tu bucket.
 
-### Listo cuando
-- [ ] `uv run pytest` pasa (el test de S3 no necesita moto server corriendo).
-- [ ] Renombras la carpeta `artifacts/` y la API sigue funcionando porque lee del S3 local.
+### Done when
+- [ ] `uv run pytest` passes (the S3 test does not need the moto server running).
+- [ ] You rename the `artifacts/` folder and the API still works, because it reads from the local S3.
 
-**Commit sugerido:** `feat(infra): load model artifacts from S3 (moto locally)`
+**Suggested commit:** `feat(infra): load model artifacts from S3 (moto locally)`
 
 ---
 
-## Día 5 — Lambda local con SAM
+## Day 5 — AWS Lambda locally
 
-**Aprendes:** Mangum (adaptador ASGI → Lambda), Lambda como imagen de contenedor, SAM, `sam local`, cold starts y por qué la memoria de Lambda no es estado compartido.
+**You learn:** the Lambda execution model (handler, cold vs warm start), packaging, the API Gateway event format, and why Lambda memory is not shared state.
 
-### Pasos
-1. `uv add mangum`
-2. `app/handler.py`:
-   ```python
-   from mangum import Mangum
-
-   from app.api.main import app
-
-   handler = Mangum(app)  # ejecuta el lifespan en el cold start
-   ```
-3. Generar `requirements.txt` sin dependencias de desarrollo (repetir cada vez que agregues paquetes):
-   ```bash
-   uv export --no-dev --no-hashes --no-emit-project --format requirements-txt -o requirements.txt
-   ```
-4. `Dockerfile`:
-   ```dockerfile
-   FROM public.ecr.aws/lambda/python:3.12
-
-   COPY requirements.txt .
-   RUN pip install -r requirements.txt --no-cache-dir
-
-   COPY app/ ${LAMBDA_TASK_ROOT}/app/
-
-   CMD ["app.handler.handler"]
-   ```
-5. `.dockerignore`:
-   ```
-   .venv
-   data
-   artifacts
-   tests
-   scripts
-   .aws-sam
-   .git
-   ```
-6. `template.yaml` (sirve igual para local y para AWS real):
-   ```yaml
-   AWSTemplateFormatVersion: "2010-09-09"
-   Transform: AWS::Serverless-2016-10-31
-   Description: RealTime RecSys - base
-
-   Parameters:
-     ArtifactsBucket:
-       Type: String
-       Default: recsys-local
-
-   Globals:
-     Function:
-       Timeout: 30
-       MemorySize: 1024
-
-   Resources:
-     RecSysFunction:
-       Type: AWS::Serverless::Function
-       Properties:
-         PackageType: Image
-         Architectures: [x86_64]
-         Environment:
-           Variables:
-             # Valores para AWS real. En local se sobrescriben con env.json.
-             # Toda variable que quieras sobrescribir en local DEBE estar declarada aquí.
-             ARTIFACTS_SOURCE: s3
-             ARTIFACTS_BUCKET: !Ref ArtifactsBucket
-             ARTIFACTS_PREFIX: models/v1
-             S3_ENDPOINT_URL: ""
-             EMBEDDINGS_PROVIDER: bedrock
-             OLLAMA_URL: ""
-             ENABLE_SEARCH: "false"
-         Policies:
-           - S3ReadPolicy:
-               BucketName: !Ref ArtifactsBucket
-           - Statement:
-               - Effect: Allow
-                 Action: bedrock:InvokeModel
-                 Resource: "*"
-         Events:
-           Api:
-             Type: HttpApi
-             Properties:
-               Path: /{proxy+}
-               Method: ANY
-       Metadata:
-         Dockerfile: Dockerfile
-         DockerContext: .
-         DockerTag: v1
-
-   Outputs:
-     ApiUrl:
-       Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
-   ```
-7. `env.json` (variables para `sam local`). Dentro del contenedor, `localhost` es el propio contenedor; para llegar a tu PC se usa `host.docker.internal`:
-   ```json
-   {
-     "RecSysFunction": {
-       "ARTIFACTS_BUCKET": "recsys-local",
-       "S3_ENDPOINT_URL": "http://host.docker.internal:5000",
-       "EMBEDDINGS_PROVIDER": "ollama",
-       "OLLAMA_URL": "http://host.docker.internal:11434",
-       "ENABLE_SEARCH": "false"
-     }
-   }
-   ```
-8. Construir y levantar (con moto server corriendo y sembrado, igual que el día 4):
+### Steps
+1. Read the three files that make this work:
+   - `src/lambda/handler.py`: Mangum wraps FastAPI. `init_state` runs at cold start.
+   - `src/scripts/build_lambda.py`: installs the runtime dependencies **for Linux / Python 3.12** and adds `app/` + `handler.py`.
+   - `docker-compose.yml` → `lambda` service: the official AWS image `public.ecr.aws/lambda/python:3.12`, which includes the Runtime Interface Emulator (RIE).
+2. Build the package. Repeat this after every code or dependency change:
    ```powershell
-   . .\scripts\local-env.ps1     # sam local pasa estas credenciales falsas al contenedor
-   sam build
-   sam local start-api --env-vars env.json --warm-containers EAGER
+   uv run python src/scripts/build_lambda.py
    ```
-9. Probar contra la "Lambda" en `http://127.0.0.1:3000`. Usa un `product_id` que exista en tu `related.json`:
+   Look at `build/lambda/`: this is exactly what AWS will run.
+3. Start the Lambda. It reads the model from the moto S3, so do Day 4 step 3 first:
    ```powershell
-   $URL="http://127.0.0.1:3000"
-   curl.exe "$URL/health"
-   curl.exe -X POST "$URL/events" -H "Content-Type: application/json" -d '{\"session_id\":\"s1\",\"product_id\":1004856,\"event_type\":\"view\"}'
-   curl.exe "$URL/recommendations?session_id=s1"
+   docker compose --profile lambda up -d lambda
+   docker compose logs -f lambda        # Ctrl+C to stop following
    ```
-10. **Experimento clave:** detén `sam local` y vuelve a levantarlo **sin** `--warm-containers EAGER`. Manda un evento y pide recomendaciones: **la sesión se pierde**, porque cada invocación corre en un contenedor nuevo con memoria vacía. En AWS real pasa lo mismo cuando hay varias instancias concurrentes. Por eso en producción la sesión va en **DynamoDB** (o ElastiCache). Anótalo como tu primer ADR.
-11. Observa en la terminal de `sam local` el tiempo del primer request (cold start: arranque del contenedor + carga de artefactos) contra los siguientes.
+4. Invoke it. The RIE expects a Lambda *event*, not plain HTTP. `invoke_lambda.py` builds the same event API Gateway sends:
+   ```powershell
+   uv run python src/scripts/invoke_lambda.py GET /health
+   uv run python src/scripts/invoke_lambda.py GET "/recommendations?session_id=s1&k=5"
+   '{"session_id":"s1","product_id":1004856,"event_type":"view"}' | Set-Content event.json
+   uv run python src/scripts/invoke_lambda.py POST /events --body-file event.json
+   uv run python src/scripts/invoke_lambda.py GET "/recommendations?session_id=s1&k=5"
+   ```
+   Use a `product_id` from your `related.json`. Add `event.json` to `.gitignore` or delete it afterwards.
+5. **Experiment 1: cold vs warm.** Compare the milliseconds of the first call against the next ones. The logs show `Init Duration` on the first one (loading Python + `init_state`).
+6. **Experiment 2: memory is not shared state.** Send an event, then restart the function (`docker compose restart lambda`, which works like a new Lambda instance) and ask for recommendations again: **the session is gone**. In AWS this happens whenever Lambda recycles an instance or runs several in parallel. Each instance has its own memory, so an event can land on one instance and the next request on another.
+7. Write your first ADR: `docs/adr/0001-session-state.md` (in-memory vs DynamoDB, with what you observed).
 
-### Listo cuando
-- [ ] La API responde desde `sam local` en el puerto 3000, leyendo del S3 local.
-- [ ] Viste con tus propios ojos el problema de la sesión en memoria y lo puedes explicar.
+### Done when
+- [ ] The API answers through the local Lambda, reading the model from the local S3.
+- [ ] You measured cold vs warm start.
+- [ ] You saw the session disappear and can explain why production needs DynamoDB (or ElastiCache).
 
-**Commit sugerido:** `feat(lambda): run API as Lambda container with SAM local`
+**Suggested commit:** `docs(adr): session state on Lambda`
 
 ---
 
-## Día 6 — LangChain: búsqueda en lenguaje natural (embeddings locales)
+## Day 6 — LangChain: natural-language search (local embeddings)
 
-**Aprendes:** embeddings, vector stores, `Document` de LangChain, cómo cambiar de proveedor sin tocar el resto del código y por qué el LLM **no** va en el camino crítico de las recomendaciones.
+**You learn:** embeddings, vector stores, LangChain `Document`, swapping providers without touching the rest of the code, and why the LLM is **not** in the recommendation hot path.
 
-### Pasos
-1. Verificar Ollama: `ollama list` debe mostrar `nomic-embed-text`. Si no, corre `ollama pull nomic-embed-text`.
-2. Dependencias:
-   ```bash
+### Steps
+1. Start Ollama. The first time, it downloads the `nomic-embed-text` model (~270 MB):
+   ```powershell
+   docker compose --profile ai up -d
+   docker compose logs ollama-init      # wait for "success"
+   ```
+   > If you already run Ollama natively on Windows, port 11434 is taken. Stop the native app or remove the `ports` mapping of the `ollama` service.
+2. Dependencies:
+   ```powershell
    uv add langchain-core langchain-ollama numpy
    ```
-   > Se usa `InMemoryVectorStore` de `langchain-core`: guarda el índice como JSON, no necesita pickle y para unos miles de productos es suficientemente rápido. (`langchain-community`, donde vivía FAISS, está en proceso de retiro.)
-3. `app/infrastructure/embeddings.py`, la fábrica de proveedores:
+   > This uses LangChain's `InMemoryVectorStore` from `langchain-core`. It stores the index as JSON (no pickle) and is fast enough for a few thousand products. `langchain-community`, where the FAISS integration lived, is being retired.
+3. `src/app/infrastructure/embeddings.py`, the provider factory:
    ```python
    import os
 
@@ -741,16 +692,17 @@ realtime-recsys/
                model="nomic-embed-text",
                base_url=os.getenv("OLLAMA_URL") or "http://localhost:11434",
            )
-       if provider == "bedrock":  # se usa en el día 8
+       if provider == "bedrock":  # used on Day 8
            from langchain_aws import BedrockEmbeddings
 
            return BedrockEmbeddings(model_id="amazon.titan-embed-text-v2:0")
 
-       raise ValueError(f"EMBEDDINGS_PROVIDER no soportado: {provider}")
+       raise ValueError(f"Unsupported EMBEDDINGS_PROVIDER: {provider}")
    ```
-4. `training/build_index.py`:
+4. `src/training/build_index.py`:
    ```python
-   """Crea un índice semántico de productos con LangChain."""
+   """Build a semantic product index with LangChain."""
+
    import os
 
    import pandas as pd
@@ -776,14 +728,14 @@ realtime-recsys/
        ]
        index = InMemoryVectorStore.from_documents(docs, get_embeddings())
        index.dump("artifacts/search_index.json")
-       print(f"indexados={len(docs):,} proveedor={os.getenv('EMBEDDINGS_PROVIDER', 'ollama')}")
+       print(f"indexed={len(docs):,} provider={os.getenv('EMBEDDINGS_PROVIDER', 'ollama')}")
 
 
    if __name__ == "__main__":
        main()
    ```
-   Correr: `uv run python -m training.build_index`. Se usa `-m` para que Python encuentre el paquete `app`. Con Ollama tarda unos minutos; para probar rápido baja `MAX_PRODUCTS` a 500.
-5. `app/infrastructure/search.py`:
+   Run: `uv run python -m training.build_index`. On CPU it takes a few minutes. Lower `MAX_PRODUCTS` to 500 for a quick first run.
+5. `src/app/infrastructure/search.py`:
    ```python
    import os
    from pathlib import Path
@@ -798,17 +750,18 @@ realtime-recsys/
 
    def load_search_index() -> InMemoryVectorStore:
        if os.getenv("ARTIFACTS_SOURCE") == "s3":
-           path = Path("/tmp") / INDEX_FILE  # /tmp es el único disco escribible en Lambda
+           path = Path("/tmp") / INDEX_FILE  # /tmp is the only writable disk on Lambda
            bucket = os.environ["ARTIFACTS_BUCKET"]
            prefix = os.getenv("ARTIFACTS_PREFIX", "models/v1")
            s3_client().download_file(bucket, f"{prefix}/{INDEX_FILE}", str(path))
        else:
            path = Path(os.getenv("ARTIFACTS_DIR", "artifacts")) / INDEX_FILE
 
-       # El índice se debe consultar con el MISMO proveedor de embeddings con el que se creó
+       # Query the index with the SAME embeddings provider that built it
        return InMemoryVectorStore.load(str(path), get_embeddings())
    ```
-6. Agregar a `app/api/schemas.py`:
+   > On Windows hosts `/tmp` does not exist. That branch only runs inside Lambda (Linux). Locally on Windows, use `ARTIFACTS_SOURCE=local` to test search with uvicorn, or test through the Lambda container.
+6. Add to `src/app/schemas.py`:
    ```python
    class SearchRequest(BaseModel):
        query: str
@@ -818,15 +771,15 @@ realtime-recsys/
    class SearchResult(BaseModel):
        product_id: int
        description: str
-       similarity: float  # coseno: más alto = más parecido
+       similarity: float  # cosine: higher = more similar
    ```
-7. En `app/api/main.py`:
-   - Imports: `import os`, `from fastapi import HTTPException`, agregar `SearchRequest, SearchResult` al import de schemas y `from app.infrastructure.search import load_search_index`.
-   - En el `lifespan`, antes del `yield`:
+7. In `src/app/main.py`:
+   - Imports: `import os`, `from fastapi import HTTPException`, add `SearchRequest, SearchResult` to the schemas import, and `from app.infrastructure.search import load_search_index`.
+   - At the end of `init_state`:
      ```python
      app.state.search_index = load_search_index() if os.getenv("ENABLE_SEARCH") == "true" else None
      ```
-     Así los tests siguen funcionando sin Ollama.
+     Tests keep working without Ollama, because the fixture clears `ENABLE_SEARCH`.
    - Endpoint:
      ```python
      @app.post("/search", response_model=list[SearchResult])
@@ -840,32 +793,35 @@ realtime-recsys/
              for doc, score in results
          ]
      ```
-8. Activar la búsqueda: cambia `ENABLE_SEARCH` a `"true"` en `scripts/local-env.ps1` y en `env.json`.
-9. Probar con uvicorn (más rápido para iterar):
+8. Try it with uvicorn, reading local files:
    ```powershell
-   . .\scripts\local-env.ps1
-   .\scripts\seed-s3.ps1            # vuelve a subir artifacts/, ahora con search_index.json
-   uv run uvicorn app.api.main:app --reload
+   $env:ARTIFACTS_SOURCE="local"; $env:ENABLE_SEARCH="true"; $env:OLLAMA_URL="http://localhost:11434"
+   uv run uvicorn app.main:app --reload
    ```
    ```powershell
    curl.exe -X POST "http://127.0.0.1:8000/search" -H "Content-Type: application/json" -d '{\"query\":\"cheap samsung headphones\",\"k\":5}'
    ```
-   Las categorías del dataset están en inglés, así que las búsquedas en inglés funcionan mejor.
-10. Probar como Lambda: regenera `requirements.txt` (paso 3 del día 5), luego `sam build` y `sam local start-api --env-vars env.json --warm-containers EAGER`, y repite el curl contra el puerto 3000.
+   The dataset categories are in English, so English queries work best.
+9. Try it as a Lambda:
+   - Set `ENABLE_SEARCH: "true"` in the `lambda` service of `docker-compose.yml` and in `src/scripts/local-env.ps1`.
+   - Re-upload the artifacts (now including `search_index.json`): `uv run python src/scripts/upload_model.py --create-bucket`
+   - `uv run python src/scripts/build_lambda.py` and then `docker compose --profile lambda up -d --force-recreate lambda`
+   - Create `search.json` with `{"query":"cheap samsung headphones","k":5}` and run `uv run python src/scripts/invoke_lambda.py POST /search --body-file search.json`
 
-### Listo cuando
-- [ ] Una búsqueda en lenguaje natural regresa productos razonables con uvicorn y con `sam local`.
-- [ ] Puedes explicar por qué la búsqueda usa embeddings y las recomendaciones no usan LLM: latencia y costo por request a escala.
+### Done when
+- [ ] A natural-language query returns sensible products with uvicorn and through the local Lambda.
+- [ ] You can explain why search uses embeddings while recommendations do not call an LLM: latency and cost per request at scale.
+- [ ] ADR `0002-llm-out-of-hot-path.md` written.
 
-**Commit sugerido:** `feat(search): natural language product search with LangChain`
+**Suggested commit:** `feat(search): natural-language product search with LangChain`
 
 ---
 
-## Día 7 — Cierre: CI, README y revisión
+## Day 7 — CI, README and a local load test
 
-**Aprendes:** GitHub Actions con uv y cómo presentar un proyecto técnico.
+**You learn:** GitHub Actions with uv, k6 basics, how to present a technical project.
 
-### Pasos
+### Steps
 1. `.github/workflows/ci.yml`:
    ```yaml
    name: ci
@@ -880,113 +836,135 @@ realtime-recsys/
          - run: uv sync
          - run: uv run ruff check .
          - run: uv run pytest -v
+         - run: uv run python src/scripts/build_lambda.py   # the Lambda package must always build
    ```
-   Los tests no necesitan moto server, Ollama ni AWS, así que corren en CI sin configuración extra.
-2. `README.md` con estas secciones:
-   - **Problema** (3 líneas) y **qué hace el sistema**.
-   - **Diagrama** (puedes copiar el mermaid de este plan; GitHub lo renderiza).
-   - **Cómo funciona el "tiempo real"**: pesos por evento, decay por recencia y fallback a populares.
-   - **Cómo correrlo en local, sin cuenta de AWS**: moto server + `local-env.ps1` + `seed-s3.ps1` + uvicorn o `sam local`.
-   - **Decisiones de diseño**: sesión en memoria vs DynamoDB (con el experimento del día 5); LLM fuera del hot path; proveedores de embeddings intercambiables; moto vs LocalStack; Lambda contenedor vs zip.
-   - **Lo que aprendí** y **Siguientes pasos**.
-3. Repasar el código completo de punta a punta y anotar dudas.
+   The tests need neither moto server, Ollama nor AWS, so CI needs no extra setup.
+2. Local smoke load test. Run the API listening on all interfaces, so the k6 container can reach it:
+   ```powershell
+   uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+   In another terminal:
+   ```powershell
+   docker compose --profile loadtest run --rm k6
+   ```
+   Read the summary: `http_req_duration` p(95)/p(99), `http_req_failed`, `iterations`. Windows may ask to allow Python through the firewall.
+   > Do not use `--workers 4` with the in-memory session: each worker is a separate process with its own memory. It is the same lesson as Day 5.
+3. Update `README.md`: phase status, a screenshot or GIF, what you learned, and the first measured numbers.
+4. Read the whole code base end to end and write down open questions.
 
-### Listo cuando
-- [ ] El badge de CI está en verde.
-- [ ] Alguien puede clonar el repo y correrlo en local siguiendo solo el README, sin cuenta de AWS.
-- [ ] Puedes explicar en 2 minutos el flujo completo: evento → sesión → candidatos → ranking → respuesta.
+### Done when
+- [ ] CI badge is green.
+- [ ] Someone can clone the repo and run it locally from the README alone, with no AWS account.
+- [ ] You can explain the full flow in 2 minutes: event → session → candidates → ranking → response.
 
-**Commit sugerido:** `docs: README, architecture and CI`
+**Suggested commit:** `ci: lint, tests and Lambda build`
 
 ---
 
-## Día 8 (opcional) — Despliegue real en AWS
+## Day 8 (optional) — Deploy to AWS with Terraform
 
-Hazlo **una vez**, cuando todo funcione en local. Una URL viva y una captura en el README pesan en entrevistas. Con este volumen, Lambda, API Gateway, S3 y unos cuantos embeddings deberían costar centavos o nada; aun así, pon la alerta y borra todo al terminar.
+Do this **once**, when everything works locally. A live URL and real numbers in the README matter in interviews. At this volume, Lambda, API Gateway, S3 and a few embeddings should cost cents or nothing. Still: set a budget alert and destroy everything at the end.
 
-### Pasos
-1. Cuenta de AWS y **alerta de presupuesto de $5 USD**: Billing → Budgets → *Create budget* → *Monthly cost budget*.
-2. Un usuario IAM para desarrollo (o IAM Identity Center) y `aws configure` con región **`us-east-1`**.
-3. **Abre una terminal nueva SIN `local-env.ps1`**, para que las credenciales falsas y `S3_ENDPOINT_URL` no apunten a moto. Verifica con `aws sts get-caller-identity`.
-4. En la consola de **Amazon Bedrock** → *Model catalog*, verifica que **Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) esté disponible en `us-east-1`. Si te pide habilitar el acceso al modelo, hazlo.
-5. Agregar el proveedor y regenerar dependencias:
-   ```bash
-   uv add langchain-aws
-   uv export --no-dev --no-hashes --no-emit-project --format requirements-txt -o requirements.txt
-   ```
-6. **Reconstruir el índice con Bedrock.** El de Ollama no sirve en la nube porque los vectores de modelos distintos no son compatibles:
+### Steps
+1. AWS account and a **$5 USD budget alert**: Billing → Budgets → *Create budget* → *Monthly cost budget*.
+2. An IAM user for development (or IAM Identity Center). Install the tools and log in:
    ```powershell
+   winget install Amazon.AWSCLI
+   winget install Hashicorp.Terraform
+   aws configure            # region: us-east-1
+   aws sts get-caller-identity
+   ```
+   **Use a new terminal WITHOUT `local-env.ps1`**, so the fake credentials and `S3_ENDPOINT_URL` do not point to moto.
+3. In the **Amazon Bedrock** console → *Model catalog*, check that **Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) is available in `us-east-1`. Enable model access if asked.
+4. Add the Bedrock provider and **rebuild the search index with Bedrock**. Ollama vectors are not compatible with Titan vectors.
+   ```powershell
+   uv add langchain-aws
    $env:EMBEDDINGS_PROVIDER="bedrock"; $env:AWS_DEFAULT_REGION="us-east-1"
    uv run python -m training.build_index
    ```
-7. Crear el bucket real y subir los artefactos (el nombre debe ser único globalmente):
-   ```bash
-   aws s3 mb s3://recsys-eduardo-artifacts --region us-east-1
-   aws s3 cp artifacts/ s3://recsys-eduardo-artifacts/models/v1/ --recursive
+5. Build the package and deploy:
+   ```powershell
+   uv run python src/scripts/build_lambda.py
+   cd src/infra/terraform
+   Copy-Item terraform.tfvars.example terraform.tfvars   # set artifacts_bucket_name and enable_search = true
+   terraform init
+   terraform plan       # read it: what will be created?
+   terraform apply
+   cd ../../..
    ```
-8. Activar la búsqueda en `template.yaml` (`ENABLE_SEARCH: "true"`) y desplegar:
-   ```bash
-   sam build
-   sam deploy --guided
+6. Upload the artifacts **before the first request** (the Lambda loads them at cold start):
+   ```powershell
+   uv run python src/scripts/upload_model.py --bucket (terraform -chdir=src/infra/terraform output -raw artifacts_bucket)
    ```
-   En el asistente: stack name `realtime-recsys`, región `us-east-1`, `ArtifactsBucket` = `recsys-eduardo-artifacts`, acepta crear el repositorio ECR administrado y guarda la configuración en `samconfig.toml`.
-9. Probar con la URL del output (los mismos `curl` del día 5 y 6) y ver logs: `sam logs --stack-name realtime-recsys --tail`. En CloudWatch busca `Init Duration` para medir el cold start real.
-10. Captura de pantalla o GIF para el README y luego **limpieza**:
-    ```bash
-    sam delete --stack-name realtime-recsys
-    aws s3 rb s3://recsys-eduardo-artifacts --force
-    ```
-11. Para volver a trabajar en local: `$env:EMBEDDINGS_PROVIDER="ollama"` y vuelve a correr `build_index`.
+7. Test the public URL and read the logs:
+   ```powershell
+   $URL = terraform -chdir=src/infra/terraform output -raw api_url
+   curl.exe "${URL}health"
+   curl.exe "${URL}recommendations?session_id=s1&k=5"
+   aws logs tail /aws/lambda/realtime-recsys --follow     # look for Init Duration
+   ```
+   If you called the API before uploading the artifacts, the instance failed its cold start. Force fresh instances with:
+   `aws lambda update-function-configuration --function-name realtime-recsys --description "reload"`
+8. Load test against AWS. Check your Lambda concurrency quota first (*Service Quotas → AWS Lambda → Concurrent executions*). Start with the smoke profile:
+   ```powershell
+   docker compose --profile loadtest run --rm -e BASE_URL=$URL k6
+   docker compose --profile loadtest run --rm -e BASE_URL=$URL -e PROFILE=load k6
+   ```
+   Fill in the "Target metrics" table of the README with the results.
+9. Screenshot or GIF for the README, then **clean up**:
+   ```powershell
+   terraform -chdir=src/infra/terraform destroy
+   ```
+10. Back to local work: `$env:EMBEDDINGS_PROVIDER="ollama"` and rebuild the index (`uv run python -m training.build_index`).
 
-### Listo cuando
-- [ ] Tuviste una URL pública funcionando y la documentaste en el README.
-- [ ] Borraste el stack y el bucket, y la factura sigue en ~$0.
+### Done when
+- [ ] You had a working public URL and documented it in the README.
+- [ ] The README metrics table has real numbers (latency, errors, cold start, cost).
+- [ ] You destroyed the stack and the bill is still ~$0.
 
 ---
 
-## Problemas comunes
+## Troubleshooting
 
-| Síntoma | Causa probable | Solución |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError: app` en pytest | Falta `pythonpath` | Agregar `[tool.pytest.ini_options] pythonpath = ["."]` |
-| `ModuleNotFoundError: app` en `build_index` | Se corrió como archivo | Usar `uv run python -m training.build_index` |
-| `NoSuchBucket` al arrancar la API | Reiniciaste moto (vive en memoria) | Correr `.\scripts\seed-s3.ps1` |
-| `Could not connect to the endpoint URL` | moto server no está corriendo | `uv run moto_server -H 0.0.0.0 -p 5000` |
-| `sam local` no llega a moto u Ollama | `localhost` dentro del contenedor | Usar `host.docker.internal` en `env.json`; moto con `-H 0.0.0.0` |
-| `sam local` no llega a Ollama aunque uses `host.docker.internal` | Ollama escucha solo en 127.0.0.1 | Variable de entorno de Windows `OLLAMA_HOST=0.0.0.0` y reiniciar Ollama |
-| Variables de `env.json` no se aplican | No están declaradas en `template.yaml` | Declararlas en `Environment.Variables` |
-| `sam build` falla | Docker no está corriendo | Abrir Docker Desktop |
-| La sesión se pierde entre requests en `sam local` | Contenedor nuevo por invocación | `--warm-containers EAGER` (y es justo el ADR del día 5) |
-| No se pueden ejecutar los `.ps1` | Execution policy | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
-| Tests fallan solo en tu terminal | Quedaron variables del modo local | Los tests usan `monkeypatch`; revisa que aíslen `ARTIFACTS_SOURCE` y `S3_ENDPOINT_URL` |
-| Resultados de búsqueda sin sentido | Índice creado con otro proveedor de embeddings | Reconstruir el índice con el proveedor actual |
-| Cambié dependencias y la Lambda no las ve | `requirements.txt` desactualizado | Repetir `uv export ...` y `sam build` |
-| (Día 8) `AccessDeniedException` en Bedrock | Modelo no habilitado | Habilitarlo en la consola de Bedrock |
+| `ModuleNotFoundError: app` | Project not installed | Run `uv sync` (installs `src/app` in editable mode) |
+| `NoSuchBucket` when the API or Lambda starts | moto was restarted (memory only) | `uv run python src/scripts/upload_model.py --create-bucket` |
+| `Could not connect to the endpoint URL` | moto is not running | `docker compose up -d` |
+| `invoke_lambda.py`: connection refused | Lambda container not running | `docker compose --profile lambda up -d lambda` |
+| Local Lambda returns errors right after a code change | `build/lambda` is outdated | `build_lambda.py`, then `docker compose restart lambda` |
+| `Runtime.ImportModuleError` | Package not built, or built in another folder | Run `build_lambda.py` from the repo root |
+| Port 11434 already in use | Native Ollama is running on Windows | Stop it or remove the port mapping in `docker-compose.yml` |
+| k6 cannot reach `host.docker.internal:8000` | uvicorn listening only on 127.0.0.1 | `--host 0.0.0.0` and allow it in the firewall |
+| Session lost between requests | Different processes/instances or a restart | Expected (Day 5 ADR). Production uses DynamoDB |
+| Tests fail only in your terminal | Leftover local-mode variables | The `conftest.py` fixture isolates them; check it is in place |
+| Nonsense search results | Index built with another embeddings provider | Rebuild the index with the current provider |
+| PowerShell scripts blocked | Execution policy | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| (Day 8) `AccessDeniedException` from Bedrock | Model access not enabled | Enable it in the Bedrock console |
+| (Day 8) `BucketAlreadyExists` | Bucket names are global | Pick a more unique `artifacts_bucket_name` |
 
 ---
 
-## Siguientes pasos (después de la base)
+## Next steps (after the foundation)
 
-1. **DynamoDB** para la sesión, con TTL. Resuelve el problema del día 5. En local se emula con moto o con *DynamoDB Local* (imagen oficial de AWS, gratis).
-2. **Evaluación offline**: split temporal y Recall@10 / NDCG@10 contra el baseline de popularidad.
-3. **Item2Vec + FAISS** (`faiss-cpu` directo) para generar candidatos con embeddings de comportamiento.
-4. **Simulador** que reproduce el stream de eventos de REES46 contra la API.
-5. **Prueba de carga** con Locust o k6: p95, RPS y costo estimado por 1M recomendaciones.
-6. **Explicaciones con LLM** ("porque viste X…") generadas de forma asíncrona y cacheadas.
-7. **CD con GitHub Actions + OIDC** hacia AWS, sin llaves guardadas.
-
-Con eso tendrás los números reales para el pitch final del proyecto.
+1. **DynamoDB** for session state with TTL (fixes the Day 5 problem). Locally: moto or the official *DynamoDB Local* image.
+2. **Offline evaluation**: temporal split, Recall@10 / NDCG@10 vs the popularity baseline, plus catalog coverage.
+3. **Item2Vec + FAISS** (`faiss-cpu`) for behavior-based candidates.
+4. **Event replay simulator** that streams REES46 sessions into the API and estimates conversion uplift.
+5. **LLM explanations** ("because you viewed X…") generated asynchronously and cached.
+6. **CD with GitHub Actions + OIDC** to AWS, with no stored keys.
+7. **Provisioned concurrency / SnapStart** experiments for cold starts.
 
 ---
 
-## Checklist general
+## Checklist
 
-- [ ] Día 0 — Herramientas instaladas (sin cuenta de AWS)
-- [ ] Día 1 — FastAPI corriendo
-- [ ] Día 2 — Artefactos de recomendación
-- [ ] Día 3 — Recomendaciones en tiempo real + tests
-- [ ] Día 4 — Artefactos desde S3 local (moto)
-- [ ] Día 5 — Lambda local con `sam local`
-- [ ] Día 6 — Búsqueda con LangChain + Ollama
-- [ ] Día 7 — CI + README
-- [ ] Día 8 (opcional) — Despliegue real en AWS y limpieza
+- [x] Day 0 — Tools installed (no AWS account)
+- [x] Day 1 — FastAPI running (+ Lambda handler skeleton)
+- [ ] Day 2 — Recommender artifacts
+- [ ] Day 3 — Real-time recommendations + tests
+- [ ] Day 4 — Artifacts from local S3 (moto)
+- [ ] Day 5 — Local Lambda + ADR 0001
+- [ ] Day 6 — Search with LangChain + Ollama + ADR 0002
+- [ ] Day 7 — CI + README + local k6
+- [ ] Day 8 (optional) — Terraform deploy, load test and cleanup

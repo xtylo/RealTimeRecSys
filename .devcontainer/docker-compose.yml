@@ -1,0 +1,23 @@
+# Adds the "dev" container used by VS Code Dev Containers.
+# Paths are relative to the FIRST compose file (the repo root), so "." is the repo.
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+    command: sleep infinity
+    volumes:
+      - .:/workspaces/realtime-recsys:cached
+    environment:
+      # Keep the Linux virtualenv outside the repo so it never clashes with a Windows .venv
+      UV_PROJECT_ENVIRONMENT: /home/vscode/.venvs/realtime-recsys
+      UV_LINK_MODE: copy
+      # Same local services as on the host, reached by service name
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      ARTIFACTS_SOURCE: s3
+      ARTIFACTS_BUCKET: recsys-local
+      ARTIFACTS_PREFIX: models/v1
+      S3_ENDPOINT_URL: http://s3:5000
+      EMBEDDINGS_PROVIDER: ollama
+      OLLAMA_URL: http://ollama:11434
+      ENABLE_SEARCH: "false"

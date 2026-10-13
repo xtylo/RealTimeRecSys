@@ -1,0 +1,36 @@
+// Optional: develop inside a Linux container with everything preinstalled.
+// VS Code: "Dev Containers: Reopen in Container". Docker Desktop must be running.
+{
+  "name": "realtime-recsys",
+  // The root docker-compose.yml provides s3/ollama; the local file adds the "dev" container.
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
+  "service": "dev",
+  "runServices": ["dev", "s3", "ollama", "ollama-init"],
+  "workspaceFolder": "/workspaces/realtime-recsys",
+  "shutdownAction": "stopCompose",
+  "features": {
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/terraform:1": {}
+  },
+  "postCreateCommand": "pipx install uv && uv sync",
+  "forwardPorts": [8000],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "tamasfe.even-better-toml",
+        "hashicorp.terraform",
+        "humao.rest-client",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.datawrangler",
+        "redhat.vscode-yaml",
+        "github.vscode-github-actions",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.venvs/realtime-recsys/bin/python"
+      }
+    }
+  }
+}

@@ -1,0 +1,89 @@
+# Local AWS-like environment. No AWS account needed, $0.
+#
+#   docker compose up -d                              S3 emulator (moto)              Day 4+
+#   docker compose --profile ai up -d                 + Ollama embeddings             Day 6+
+#   docker compose --profile lambda up -d lambda      Lambda runtime emulator         Day 5+
+#   docker compose --profile loadtest run --rm k6     k6 load test                    Day 7+
+#   docker compose --profile "*" down                 stop everything
+
+name: realtime-recsys
+
+x-local-aws-env: &local-aws-env
+  AWS_ACCESS_KEY_ID: test # moto accepts any credentials
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  ARTIFACTS_SOURCE: s3
+  ARTIFACTS_BUCKET: recsys-local
+  ARTIFACTS_PREFIX: models/v1
+  S3_ENDPOINT_URL: http://s3:5000
+  EMBEDDINGS_PROVIDER: ollama
+  OLLAMA_URL: http://ollama:11434
+
+services:
+  # S3 emulator. Data lives in memory: re-upload artifacts after a restart.
+  # Dashboard: http://localhost:5000/moto-api/
+  s3:
+    image: motoserver/moto:5.2.3
+    ports:
+      - "5000:5000"
+
+  # Local embeddings model for LangChain (replaces Amazon Bedrock locally).
+  ollama:
+    image: ollama/ollama:0.40.2
+    profiles: ["ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # One-shot job: downloads the embeddings model into the ollama volume.
+  ollama-init:
+    image: ollama/ollama:0.40.2
+    profiles: ["ai"]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["ollama", "pull", "nomic-embed-text"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  # The official AWS Lambda Python image includes the Runtime Interface Emulator.
+  # It runs the same package that is deployed to AWS (build it first:
+  #   uv run python src/scripts/build_lambda.py
+  # and call it with src/scripts/invoke_lambda.py).
+  lambda:
+    image: public.ecr.aws/lambda/python:3.12
+    platform: linux/amd64
+    profiles: ["lambda"]
+    command: ["handler.handler"]
+    ports:
+      - "9000:8080"
+    volumes:
+      - ./build/lambda:/var/task:ro
+    environment:
+      <<: *local-aws-env
+      ENABLE_SEARCH: "false" # "true" on Day 6 (requires --profile ai)
+    depends_on:
+      - s3
+
+  # Load test. Targets the API running on your machine (uvicorn) by default.
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: ["loadtest"]
+    volumes:
+      - ./loadtest:/scripts:ro
+    environment:
+      BASE_URL: ${BASE_URL:-http://host.docker.internal:8000}
+      PROFILE: ${PROFILE:-smoke}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["run", "/scripts/k6.js"]
+
+volumes:
+  ollama-models:

@@ -5,15 +5,23 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Datos y artefactos (se generan localmente)
+# Data and generated artifacts (created locally)
 data/
 artifacts/
+build/
 
-# AWS SAM
-.aws-sam/
-samconfig.toml
+# Terraform (commit .terraform.lock.hcl, never state or tfvars)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
 
-# IDE / SO
+# Load test output
+loadtest/results/
+
+# IDE / OS
 .vs/
 .vscode/*
 !.vscode/extensions.json

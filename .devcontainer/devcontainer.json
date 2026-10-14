@@ -1,17 +1,17 @@
-// Optional: develop inside a Linux container with everything preinstalled.
+// Optional: develop inside a Linux container with Python 3.12, uv and the local S3 emulator.
 // VS Code: "Dev Containers: Reopen in Container". Docker Desktop must be running.
 {
   "name": "realtime-recsys",
   // The root docker-compose.yml provides s3/ollama; the local file adds the "dev" container.
   "dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
   "service": "dev",
-  "runServices": ["dev", "s3", "ollama", "ollama-init"],
+  // Ollama (Day 6) is not started here to keep the first build light:
+  // run `docker compose --profile ai up -d` from a host terminal when you need it.
+  "runServices": ["dev", "s3"],
   "workspaceFolder": "/workspaces/realtime-recsys",
   "shutdownAction": "stopCompose",
-  "features": {
-    "ghcr.io/devcontainers/features/aws-cli:1": {},
-    "ghcr.io/devcontainers/features/terraform:1": {}
-  },
+  // No Dev Container "features": the Terraform feature fails to install on some setups
+  // (apt exit code 100), and Terraform/AWS CLI are only needed on Day 8 (install them on the host).
   "postCreateCommand": "pipx install uv && uv sync",
   "forwardPorts": [8000],
   "customizations": {

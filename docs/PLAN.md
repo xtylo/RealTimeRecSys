@@ -141,7 +141,7 @@ realtime-recsys/
 
 Not needed until Day 8: AWS account, AWS CLI, Terraform.
 
-> **Alternative:** "Dev Containers: Reopen in Container" gives you Python 3.12, uv, AWS CLI and Terraform inside Linux, with S3 and Ollama already wired. Commands in this plan use PowerShell on Windows. Inside the container, use the same commands in bash. You can skip `local-env.ps1` there, because the variables are already set.
+> **Alternative:** "Dev Containers: Reopen in Container" gives you Python 3.12 and uv inside Linux, with the local S3 already wired (start Ollama from the host with `docker compose --profile ai up -d`). Commands in this plan use PowerShell on Windows. Inside the container, use the same commands in bash. You can skip `local-env.ps1` there, because the variables are already set.
 
 ---
 

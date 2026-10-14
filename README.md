@@ -56,7 +56,7 @@ Locally, the same boxes are replaced by moto (S3), the Lambda Runtime Interface 
 
 ```
 .
-├── .devcontainer/            # Optional VS Code Dev Container (Python 3.12, uv, AWS CLI, Terraform)
+├── .devcontainer/            # Optional VS Code Dev Container (Python 3.12, uv, local S3)
 ├── docker-compose.yml        # Local cloud simulation: S3 (moto), Ollama, Lambda emulator, k6
 ├── loadtest/
 │   └── k6.js                 # Load test (smoke and 1,000-VU profiles)
@@ -105,7 +105,7 @@ On the host, `. .\src\scripts\local-env.ps1` points the app to the local service
 | API Gateway | `src/scripts/invoke_lambda.py` builds the API Gateway v2 event |
 | Amazon Bedrock | [Ollama](https://ollama.com) + `nomic-embed-text` (`ollama` service) |
 
-**Option B – Dev Container:** open the folder in VS Code and run **Dev Containers: Reopen in Container**. You get Python 3.12, uv, the AWS CLI and Terraform, plus the S3 and Ollama services, already configured.
+**Option B – Dev Container:** open the folder in VS Code and run **Dev Containers: Reopen in Container**. You get Python 3.12 and uv with the local S3 service already wired. Start Ollama from a host terminal when you need it (`docker compose --profile ai up -d`).
 
 ## Cloud deployment
 

@@ -2,11 +2,22 @@ import json
 import os
 from pathlib import Path
 
+from app.infrastructure.aws import s3_client
+
 
 def load_artifacts() -> tuple[dict[str, list[int]], list[int]]:
-    base = Path(os.getenv("ARTIFACTS_DIR", "artifacts"))
+    if os.getenv("ARTIFACTS_SOURCE", "local") == "s3":
+        bucket = os.environ["ARTIFACTS_BUCKET"]
+        prefix = os.getenv("ARTIFACTS_PREFIX", "models/v1")
+        s3 = s3_client()
 
-    def read(name: str):
-        return json.loads((base / name).read_text())
+        def read(name: str):
+            obj = s3.get_object(Bucket=bucket, Key=f"{prefix}/{name}")
+            return json.loads(obj["Body"].read())
+    else:
+        base = Path(os.getenv("ARTIFACTS_DIR", "artifacts"))
+
+        def read(name: str):
+            return json.loads((base / name).read_text())
 
     return read("related.json"), read("popular.json")
